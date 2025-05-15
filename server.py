@@ -60,7 +60,11 @@ def main():
     """Main entry point for the SharePoint MCP server."""
     try:
         logger.info(f"Starting {APP_NAME} server...")
-        mcp.run()
+
+        # NEW: Always bind to the correct host/port, especially for Render!
+        port = int(os.getenv("PORT", "8080"))  # Use Render's assigned port if set
+        mcp.run(host="0.0.0.0", port=port)
+
     except Exception as e:
         logger.error(f"Error occurred during MCP server startup: {e}")
         raise
