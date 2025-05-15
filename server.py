@@ -58,12 +58,12 @@ register_site_tools(mcp)
 
 def main():
     """Main entry point for the SharePoint MCP server."""
+    import uvicorn
     try:
         logger.info(f"Starting {APP_NAME} server...")
 
-        # NEW: Always bind to the correct host/port, especially for Render!
-        port = int(os.getenv("PORT", "8080"))  # Use Render's assigned port if set
-        mcp.run(host="0.0.0.0", port=port)
+        port = int(os.getenv("PORT", "8080"))
+        uvicorn.run(mcp.app, host="0.0.0.0", port=port, log_level="info")
 
     except Exception as e:
         logger.error(f"Error occurred during MCP server startup: {e}")
