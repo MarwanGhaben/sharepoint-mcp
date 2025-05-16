@@ -58,7 +58,7 @@ app = FastAPI(title="SharePoint MCP REST")
 
 # Mount the core JSON-RPC at /mcp/ (note trailing slash)
 starlette_app = mcp.http_app()
-app.mount("/mcp/", starlette_app)
+app.mount("/mcp", starlette_app)
 
 # Figure out internal RPC URL (with trailing slash to avoid redirect)
 _RPC_PORT = os.getenv("PORT", "8080")
