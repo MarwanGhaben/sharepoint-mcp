@@ -1,3 +1,4 @@
+# server.py
 """Main implementation of the SharePoint MCP Server."""
 
 import os
@@ -26,7 +27,6 @@ logger = logging.getLogger("sharepoint_mcp")
 # --------------------------------------------------------------------
 @asynccontextmanager
 async def sharepoint_lifespan(server: FastMCP) -> AsyncIterator[SharePointContext]:
-    """Establish and tear down the SharePoint auth context."""
     logger.info("Initializing SharePoint connection...")
     try:
         context = await get_auth_context()
@@ -46,71 +46,24 @@ async def sharepoint_lifespan(server: FastMCP) -> AsyncIterator[SharePointContex
 # Create MCP server & register tools
 # --------------------------------------------------------------------
 mcp = FastMCP(APP_NAME, lifespan=sharepoint_lifespan)
-
 from tools.site_tools import register_site_tools  # noqa: E402
 register_site_tools(mcp)
 
 # --------------------------------------------------------------------
-# Build Starlette app from MCP then mount it inside FastAPI
+# Build Starlette app from MCP then mount at /mcp
 # --------------------------------------------------------------------
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI
 
-starlette_app = mcp.http_app()       # Starlette instance supplied by FastMCP
-# ---- DEBUG: print every route the core exposes ----
-for r in starlette_app.routes:
-    logger.info("CORE ROUTE: %s  →  %s", r.name, getattr(r, "path", getattr(r, "path_regex", "")))
-# ---------------------------------------------------
-api = FastAPI(title="SharePoint MCP Wrapper")
+starlette_app = mcp.http_app()       # JSON-RPC core
+api = FastAPI(title="SharePoint MCP JSON-RPC")
 
-# Mount original Starlette app at /mcp/core  (keeps JSON-RPC endpoint alive)
-api.mount("/rpc", starlette_app)       # <- new, shorter path
-
-# --------------------------------------------------------------------
-# Simple REST wrappers for MyGPT  (call JSON-RPC under the hood)
-# --------------------------------------------------------------------
-from fastapi import APIRouter, HTTPException
-import httpx
-
-router = APIRouter(prefix="/mcp", tags=["wrappers"])
-
-# Build the internal URL once (talk to our own JSON-RPC endpoint)
-_internal_port = os.getenv("PORT", "8080")
-RPC_URL = f"http://127.0.0.1:{_internal_port}/rpc/mcp"
-
-async def _rpc(method: str, params: dict):
-    """Helper to call JSON-RPC 2.0 on the local MCP core endpoint."""
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
-    async with httpx.AsyncClient(follow_redirects=True) as client:
-        resp = await client.post(RPC_URL, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-    if "error" in data:
-        raise ValueError(data["error"])
-    return data["result"]
-
-@router.get("/list_files")
-async def list_files_route():
-    """Return a plain JSON list of all files."""
-    try:
-        return await _rpc("list_files", {})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/get_file_content")
-async def get_file_content_route(filename: str):
-    """Return the raw content of a single file."""
-    try:
-        return await _rpc("get_file_content", {"filename": filename})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-api.include_router(router)
+# Mount the core JSON-RPC endpoint under /mcp
+api.mount("/mcp", starlette_app)
 
 # --------------------------------------------------------------------
 # Entry point
 # --------------------------------------------------------------------
 def main() -> None:
-    """Run Uvicorn on Render."""
     import uvicorn
     try:
         port = int(os.getenv("PORT", "8080"))
