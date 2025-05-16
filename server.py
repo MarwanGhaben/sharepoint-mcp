@@ -75,7 +75,7 @@ router = APIRouter(prefix="/mcp", tags=["wrappers"])
 
 # Build the internal URL once (talk to our own JSON-RPC endpoint)
 _internal_port = os.getenv("PORT", "8080")
-RPC_URL = f"http://127.0.0.1:{_internal_port}/rpc"
+RPC_URL = f"http://127.0.0.1:{_internal_port}/rpc/mcp"
 
 async def _rpc(method: str, params: dict):
     """Helper to call JSON-RPC 2.0 on the local MCP core endpoint."""
