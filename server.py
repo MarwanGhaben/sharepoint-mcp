@@ -71,12 +71,12 @@ router = APIRouter(prefix="/mcp", tags=["wrappers"])
 
 # Build the internal URL once (talk to our own JSON-RPC endpoint)
 _internal_port = os.getenv("PORT", "8080")
-RPC_URL = f"http://127.0.0.1:{_internal_port}/mcp/core"
+RPC_URL = f"http://127.0.0.1:{_internal_port}/mcp/core/"
 
 async def _rpc(method: str, params: dict):
     """Helper to call JSON-RPC 2.0 on the local MCP core endpoint."""
     payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(follow_redirects=True) as client:
         resp = await client.post(RPC_URL, json=payload)
         resp.raise_for_status()
         data = resp.json()
