@@ -4,7 +4,7 @@ import json
 import logging
 from typing import Dict, Any, List, Optional
 
-from mcp.server.fastmcp import FastMCP, Context
+from fastmcp import FastMCP, Context
 
 from auth.sharepoint_auth import refresh_token_if_needed
 from utils.graph_client import GraphClient
