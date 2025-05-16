@@ -62,21 +62,41 @@ api = FastAPI(title="SharePoint MCP Wrapper")
 api.mount("/mcp/core", starlette_app)
 
 # --------------------------------------------------------------------
-# Add simple REST helper routes at /mcp/...
+# Simple REST wrappers for MyGPT  (call JSON-RPC under the hood)
 # --------------------------------------------------------------------
+from fastapi import APIRouter, HTTPException
+import httpx
+
 router = APIRouter(prefix="/mcp", tags=["wrappers"])
+
+# Build the internal URL once (talk to our own JSON-RPC endpoint)
+_internal_port = os.getenv("PORT", "8080")
+RPC_URL = f"http://127.0.0.1:{_internal_port}/mcp/core"
+
+async def _rpc(method: str, params: dict):
+    """Helper to call JSON-RPC 2.0 on the local MCP core endpoint."""
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(RPC_URL, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+    if "error" in data:
+        raise ValueError(data["error"])
+    return data["result"]
 
 @router.get("/list_files")
 async def list_files_route():
+    """Return a plain JSON list of all files."""
     try:
-        return await mcp.call_tool("list_files", {})
+        return await _rpc("list_files", {})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/get_file_content")
 async def get_file_content_route(filename: str):
+    """Return the raw content of a single file."""
     try:
-        return await mcp.call_tool("get_file_content", {"filename": filename})
+        return await _rpc("get_file_content", {"filename": filename})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
