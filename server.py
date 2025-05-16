@@ -59,7 +59,7 @@ starlette_app = mcp.http_app()       # Starlette instance supplied by FastMCP
 api = FastAPI(title="SharePoint MCP Wrapper")
 
 # Mount original Starlette app at /mcp/core  (keeps JSON-RPC endpoint alive)
-api.mount("/mcp/core", starlette_app)
+api.mount("/rpc", starlette_app)       # <- new, shorter path
 
 # --------------------------------------------------------------------
 # Simple REST wrappers for MyGPT  (call JSON-RPC under the hood)
@@ -71,7 +71,7 @@ router = APIRouter(prefix="/mcp", tags=["wrappers"])
 
 # Build the internal URL once (talk to our own JSON-RPC endpoint)
 _internal_port = os.getenv("PORT", "8080")
-RPC_URL = f"http://127.0.0.1:{_internal_port}/mcp/core/"
+RPC_URL = f"http://127.0.0.1:{_internal_port}/rpc"
 
 async def _rpc(method: str, params: dict):
     """Helper to call JSON-RPC 2.0 on the local MCP core endpoint."""
