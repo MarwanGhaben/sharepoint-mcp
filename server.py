@@ -61,13 +61,12 @@ def main():
     try:
         logger.info("Starting %s server...", APP_NAME)
 
-        # Render gives you the port number in the PORT env var
         port = int(os.getenv("PORT", "8080"))
 
-        # Start FastMCP in web-server mode (no host arg)
         mcp.run(
             transport="streamable-http",   # HTTP server mode
-            port=port,                     # Bind to Render’s port
+            host="0.0.0.0",
+            port=port,                     # Render’s port
             log_level="info",
         )
 
