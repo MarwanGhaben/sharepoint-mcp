@@ -70,7 +70,7 @@ def main() -> None:
         port = int(os.getenv("PORT", "8080"))
 
         # Get a FastAPI/Starlette ASGI app from FastMCP (works in MCP 1.x)
-        app = mcp.streamable_http_app()
+        app = mcp.http_app()
 
         # Launch Uvicorn
         uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
