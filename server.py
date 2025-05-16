@@ -58,11 +58,14 @@ app = FastAPI(title="SharePoint MCP REST")
 
 # Mount the core JSON-RPC at /mcp/ (note trailing slash)
 starlette_app = mcp.http_app()
+for route in getattr(starlette_app, "routes", []):
+    logger.error("MCP CORE ROUTE: %s   PATH: %s", getattr(route, "name", "-"), getattr(route, "path", getattr(route, "path_regex", "-")))
 app.mount("/mcp/", starlette_app)
 
 # Figure out internal RPC URL (with trailing slash to avoid redirect)
 _RPC_PORT = os.getenv("PORT", "8080")
 RPC_URL = f"http://127.0.0.1:{_RPC_PORT}/mcp/"
+logger.error("REST wrapper will POST to %s", RPC_URL)
 
 async def _rpc_call(method: str, params: dict):
     """Call the internal JSON-RPC endpoint and return .result or raise."""
