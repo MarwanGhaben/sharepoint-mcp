@@ -57,22 +57,12 @@ from tools.site_tools import register_site_tools  # noqa: E402
 register_site_tools(mcp)
 
 # --------------------------------------------------------------------
-# Entry point
+# Build the FastAPI app in HTTP/JSON mode
 # --------------------------------------------------------------------
-def main() -> None:
-    """Start the SharePoint MCP server under Uvicorn on Render."""
-    import uvicorn
+app = mcp.http_app()   # <- plain REST/JSON transport
 
-    try:
-        logger.info("Starting %s server...", APP_NAME)
-
-        # Render sets the listening port in the PORT env var
-        port = int(os.getenv("PORT", "8080"))
-
-        # Get a FastAPI/Starlette ASGI app from FastMCP (works in MCP 1.x)
-        app = mcp.http_app()
 # --------------------------------------------------------------------
-# Simple REST wrappers for MyGPT (list files & get file content)
+# Simple REST wrappers for MyGPT
 # --------------------------------------------------------------------
 from fastapi import APIRouter, HTTPException
 
@@ -82,8 +72,7 @@ router = APIRouter(prefix="/mcp")   # URLs will start with /mcp
 async def list_files_route():
     """Return a plain JSON list of all files."""
     try:
-        result = await mcp.call_tool("list_files", {})
-        return result
+        return await mcp.call_tool("list_files", {})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -91,16 +80,22 @@ async def list_files_route():
 async def get_file_content_route(filename: str):
     """Return the raw content of a single file."""
     try:
-        result = await mcp.call_tool("get_file_content", {"filename": filename})
-        return result
+        return await mcp.call_tool("get_file_content", {"filename": filename})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 app.include_router(router)
 
-        # Launch Uvicorn
+# --------------------------------------------------------------------
+# Entry point
+# --------------------------------------------------------------------
+def main() -> None:
+    """Start the SharePoint MCP server under Uvicorn on Render."""
+    import uvicorn
+    try:
+        logger.info("Starting %s server...", APP_NAME)
+        port = int(os.getenv("PORT", "8080"))
         uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
-
     except Exception as e:
         logger.error("Fatal startup error: %s", e)
         raise
