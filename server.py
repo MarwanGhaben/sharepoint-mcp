@@ -58,15 +58,22 @@ register_site_tools(mcp)
 
 def main():
     """Main entry point for the SharePoint MCP server."""
-    import uvicorn
     try:
-        logger.info(f"Starting {APP_NAME} server...")
+        logger.info(f"Starting %s server...", APP_NAME)
 
+        # Render injects its port into the PORT env var; default to 8080 locally
         port = int(os.getenv("PORT", "8080"))
-        uvicorn.run(mcp.app, host="0.0.0.0", port=port, log_level="info")
+
+        # 👉 Tell FastMCP to serve over HTTP (Streamable-HTTP transport)
+        mcp.run(
+            transport="streamable-http",   # critical!
+            host="0.0.0.0",
+            port=port,
+            log_level="info",
+        )
 
     except Exception as e:
-        logger.error(f"Error occurred during MCP server startup: {e}")
+        logger.error("Error occurred during MCP server startup: %s", e)
         raise
 
 # Main execution
