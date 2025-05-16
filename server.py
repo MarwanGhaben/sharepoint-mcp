@@ -58,15 +58,18 @@ register_site_tools(mcp)
 
 def main():
     """Main entry point for the SharePoint MCP server."""
+    import uvicorn
     try:
         logger.info("Starting %s server...", APP_NAME)
 
+        # Render injects the correct port into the PORT env var
         port = int(os.getenv("PORT", "8080"))
 
-        mcp.run(
-            transport="streamable-http",   # HTTP server mode
+        # 👉 Run Uvicorn directly on FastMCP’s FastAPI instance
+        uvicorn.run(
+            mcp.fastapi_app,          # ← THIS is the real FastAPI object in MCP 1.x
             host="0.0.0.0",
-            port=port,                     # Render’s port
+            port=port,
             log_level="info",
         )
 
