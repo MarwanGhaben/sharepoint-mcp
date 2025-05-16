@@ -71,6 +71,32 @@ def main() -> None:
 
         # Get a FastAPI/Starlette ASGI app from FastMCP (works in MCP 1.x)
         app = mcp.http_app()
+# --------------------------------------------------------------------
+# Simple REST wrappers for MyGPT (list files & get file content)
+# --------------------------------------------------------------------
+from fastapi import APIRouter, HTTPException
+
+router = APIRouter(prefix="/mcp")   # URLs will start with /mcp
+
+@router.get("/list_files")
+async def list_files_route():
+    """Return a plain JSON list of all files."""
+    try:
+        result = await mcp.call_tool("list_files", {})
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/get_file_content")
+async def get_file_content_route(filename: str):
+    """Return the raw content of a single file."""
+    try:
+        result = await mcp.call_tool("get_file_content", {"filename": filename})
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+app.include_router(router)
 
         # Launch Uvicorn
         uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
