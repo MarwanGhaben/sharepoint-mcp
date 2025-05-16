@@ -8,79 +8,83 @@ from collections.abc import AsyncIterator
 from datetime import datetime, timedelta
 
 from mcp.server.fastmcp import FastMCP
-
 from auth.sharepoint_auth import SharePointContext, get_auth_context
 from config.settings import APP_NAME, DEBUG
 
-# Set logging level
+# --------------------------------------------------------------------
+# Logging
+# --------------------------------------------------------------------
 logging_level = logging.DEBUG if DEBUG else logging.INFO
-logging.basicConfig(level=logging_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging_level,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger("sharepoint_mcp")
 
-# Import tool registrations
-from tools.site_tools import register_site_tools
-
+# --------------------------------------------------------------------
+# SharePoint connection lifecycle
+# --------------------------------------------------------------------
 @asynccontextmanager
 async def sharepoint_lifespan(server: FastMCP) -> AsyncIterator[SharePointContext]:
-    """Manage SharePoint connection lifecycle."""
+    """Establish and tear down the SharePoint auth context."""
     logger.info("Initializing SharePoint connection...")
-    
+
     try:
-        # Get SharePoint authentication context
         logger.debug("Attempting to get authentication context...")
         context = await get_auth_context()
-        logger.info(f"Authentication successful. Token expiry: {context.token_expiry}")
-        
-        # Yield context for use in the application
+        logger.info("Authentication successful. Token expiry: %s", context.token_expiry)
         yield context
-        
+
     except Exception as e:
-        logger.error(f"Error during SharePoint authentication: {e}")
-        
-        # Create error context
-        error_context = SharePointContext(
+        logger.error("Error during SharePoint authentication: %s", e)
+
+        # Fallback “error” context so the server still starts
+        yield SharePointContext(
             access_token="error",
-            token_expiry=datetime.now() + timedelta(seconds=10),  # Short expiry
-            graph_url="https://graph.microsoft.com/v1.0"
+            token_expiry=datetime.now() + timedelta(seconds=10),
+            graph_url="https://graph.microsoft.com/v1.0",
         )
-        
-        logger.warning("Using error context due to authentication failure")
-        yield error_context
-        
+
     finally:
         logger.info("Ending SharePoint connection...")
 
-# Create MCP server at module level so CLI can find it
+# --------------------------------------------------------------------
+# Create the MCP server and register tools
+# --------------------------------------------------------------------
 mcp = FastMCP(APP_NAME, lifespan=sharepoint_lifespan)
 
-# Register tools
+from tools.site_tools import register_site_tools  # noqa: E402
 register_site_tools(mcp)
 
-def main():
-    """Main entry point for the SharePoint MCP server."""
+# --------------------------------------------------------------------
+# Entry point
+# --------------------------------------------------------------------
+def main() -> None:
+    """Start the SharePoint MCP server under Uvicorn on Render."""
     import uvicorn
+
     try:
         logger.info("Starting %s server...", APP_NAME)
 
-        # Render injects the correct port into the PORT env var
+        # Render sets the listening port in the PORT env var
         port = int(os.getenv("PORT", "8080"))
 
-        # 👉 Run Uvicorn directly on FastMCP’s FastAPI instance
-        uvicorn.run(
-            mcp.fastapi_app,          # ← THIS is the real FastAPI object in MCP 1.x
-            host="0.0.0.0",
-            port=port,
-            log_level="info",
-        )
+        # Get a FastAPI/Starlette ASGI app from FastMCP (works in MCP 1.x)
+        app = mcp.streamable_http_app()
+
+        # Launch Uvicorn
+        uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
 
     except Exception as e:
-        logger.error("Error occurred during MCP server startup: %s", e)
+        logger.error("Fatal startup error: %s", e)
         raise
 
-# Main execution
+# --------------------------------------------------------------------
+# Script execution guard
+# --------------------------------------------------------------------
 if __name__ == "__main__":
     try:
         main()
-    except Exception as e:
-        logger.error(f"Fatal error in SharePoint MCP server: {e}")
+    except Exception as exc:
+        logger.error("Uncaught fatal error: %s", exc)
         sys.exit(1)
