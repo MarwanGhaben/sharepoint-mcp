@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from auth.sharepoint_auth import SharePointContext, get_auth_context
 from config.settings import APP_NAME, DEBUG
 
