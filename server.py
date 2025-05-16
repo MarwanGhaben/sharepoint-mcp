@@ -56,6 +56,10 @@ register_site_tools(mcp)
 from fastapi import FastAPI, APIRouter, HTTPException
 
 starlette_app = mcp.http_app()       # Starlette instance supplied by FastMCP
+# ---- DEBUG: print every route the core exposes ----
+for r in starlette_app.routes:
+    logger.info("CORE ROUTE: %s  →  %s", r.name, getattr(r, "path", getattr(r, "path_regex", "")))
+# ---------------------------------------------------
 api = FastAPI(title="SharePoint MCP Wrapper")
 
 # Mount original Starlette app at /mcp/core  (keeps JSON-RPC endpoint alive)
