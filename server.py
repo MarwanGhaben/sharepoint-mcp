@@ -59,16 +59,15 @@ register_site_tools(mcp)
 def main():
     """Main entry point for the SharePoint MCP server."""
     try:
-        logger.info(f"Starting %s server...", APP_NAME)
+        logger.info("Starting %s server...", APP_NAME)
 
-        # Render injects its port into the PORT env var; default to 8080 locally
+        # Render gives you the port number in the PORT env var
         port = int(os.getenv("PORT", "8080"))
 
-        # 👉 Tell FastMCP to serve over HTTP (Streamable-HTTP transport)
+        # Start FastMCP in web-server mode (no host arg)
         mcp.run(
-            transport="streamable-http",   # critical!
-            host="0.0.0.0",
-            port=port,
+            transport="streamable-http",   # HTTP server mode
+            port=port,                     # Bind to Render’s port
             log_level="info",
         )
 
