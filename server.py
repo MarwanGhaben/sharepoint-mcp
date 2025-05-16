@@ -62,7 +62,7 @@ app.mount("/mcp/", starlette_app)
 
 # Figure out internal RPC URL (with trailing slash to avoid redirect)
 _RPC_PORT = os.getenv("PORT", "8080")
-RPC_URL = f"http://127.0.0.1:{_RPC_PORT}/mcp/"
+RPC_URL = f"http://127.0.0.1:{_RPC_PORT}/mcp"
 
 async def _rpc_call(method: str, params: dict):
     """Call the internal JSON-RPC endpoint and return .result or raise."""
