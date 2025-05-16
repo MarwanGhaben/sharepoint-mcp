@@ -28,28 +28,22 @@ logger = logging.getLogger("sharepoint_mcp")
 async def sharepoint_lifespan(server: FastMCP) -> AsyncIterator[SharePointContext]:
     """Establish and tear down the SharePoint auth context."""
     logger.info("Initializing SharePoint connection...")
-
     try:
-        logger.debug("Attempting to get authentication context...")
         context = await get_auth_context()
         logger.info("Authentication successful. Token expiry: %s", context.token_expiry)
         yield context
-
     except Exception as e:
-        logger.error("Error during SharePoint authentication: %s", e)
-
-        # Fallback “error” context so the server still starts
+        logger.error("Auth failure: %s", e)
         yield SharePointContext(
             access_token="error",
             token_expiry=datetime.now() + timedelta(seconds=10),
             graph_url="https://graph.microsoft.com/v1.0",
         )
-
     finally:
         logger.info("Ending SharePoint connection...")
 
 # --------------------------------------------------------------------
-# Create the MCP server and register tools
+# Create MCP server & register tools
 # --------------------------------------------------------------------
 mcp = FastMCP(APP_NAME, lifespan=sharepoint_lifespan)
 
@@ -57,20 +51,23 @@ from tools.site_tools import register_site_tools  # noqa: E402
 register_site_tools(mcp)
 
 # --------------------------------------------------------------------
-# Build the FastAPI app in HTTP/JSON mode
+# Build Starlette app from MCP then mount it inside FastAPI
 # --------------------------------------------------------------------
-app = mcp.http_app()   # <- plain REST/JSON transport
+from fastapi import FastAPI, APIRouter, HTTPException
+
+starlette_app = mcp.http_app()       # Starlette instance supplied by FastMCP
+api = FastAPI(title="SharePoint MCP Wrapper")
+
+# Mount original Starlette app at /mcp/core  (keeps JSON-RPC endpoint alive)
+api.mount("/mcp/core", starlette_app)
 
 # --------------------------------------------------------------------
-# Simple REST wrappers for MyGPT
+# Add simple REST helper routes at /mcp/...
 # --------------------------------------------------------------------
-from fastapi import APIRouter, HTTPException
-
-router = APIRouter(prefix="/mcp")   # URLs will start with /mcp
+router = APIRouter(prefix="/mcp", tags=["wrappers"])
 
 @router.get("/list_files")
 async def list_files_route():
-    """Return a plain JSON list of all files."""
     try:
         return await mcp.call_tool("list_files", {})
     except Exception as e:
@@ -78,31 +75,27 @@ async def list_files_route():
 
 @router.get("/get_file_content")
 async def get_file_content_route(filename: str):
-    """Return the raw content of a single file."""
     try:
         return await mcp.call_tool("get_file_content", {"filename": filename})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-app.include_router(router)
+api.include_router(router)
 
 # --------------------------------------------------------------------
 # Entry point
 # --------------------------------------------------------------------
 def main() -> None:
-    """Start the SharePoint MCP server under Uvicorn on Render."""
+    """Run Uvicorn on Render."""
     import uvicorn
     try:
-        logger.info("Starting %s server...", APP_NAME)
         port = int(os.getenv("PORT", "8080"))
-        uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+        logger.info("Starting %s on port %s", APP_NAME, port)
+        uvicorn.run(api, host="0.0.0.0", port=port, log_level="info")
     except Exception as e:
         logger.error("Fatal startup error: %s", e)
         raise
 
-# --------------------------------------------------------------------
-# Script execution guard
-# --------------------------------------------------------------------
 if __name__ == "__main__":
     try:
         main()
