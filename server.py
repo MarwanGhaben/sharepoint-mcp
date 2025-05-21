@@ -24,9 +24,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("sharepoint_mcp")
 
-# ────────────────────────────────────────────────────────────────────────────────
-# SharePoint connection lifecycle
-# ────────────────────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def sharepoint_lifespan(server: FastMCP) -> AsyncIterator[SharePointContext]:
     logger.info("Initializing SharePoint connection…")
@@ -44,9 +41,6 @@ async def sharepoint_lifespan(server: FastMCP) -> AsyncIterator[SharePointContex
     finally:
         logger.info("Tearing down SharePoint connection…")
 
-# ────────────────────────────────────────────────────────────────────────────────
-# Create MCP server & register tools
-# ────────────────────────────────────────────────────────────────────────────────
 mcp = FastMCP(APP_NAME, lifespan=sharepoint_lifespan)
 from tools.site_tools import register_site_tools  # noqa: E402
 register_site_tools(mcp)
@@ -56,8 +50,14 @@ register_site_tools(mcp)
 # ────────────────────────────────────────────────────────────────────────────────
 app = FastAPI(title="SharePoint MCP REST")
 
+@app.get("/", summary="Health check")
+async def root():
+    """Health check endpoint."""
+    return {"status": "ok", "message": "SharePoint MCP server is running."}
+
 # Mount the core JSON-RPC at /mcp/ (note trailing slash)
 starlette_app = mcp.http_app()
+# Log all available routes for debugging
 for route in getattr(starlette_app, "routes", []):
     logger.error("MCP CORE ROUTE: %s   PATH: %s", getattr(route, "name", "-"), getattr(route, "path", getattr(route, "path_regex", "-")))
 app.mount("/mcp/", starlette_app)
@@ -75,7 +75,6 @@ async def _rpc_call(method: str, params: dict):
         resp.raise_for_status()
         data = resp.json()
     if "error" in data:
-        # JSON-RPC error object
         err = data["error"]
         raise HTTPException(status_code=500, detail=f"{err.get('code')}: {err.get('message')}")
     return data.get("result")
@@ -100,17 +99,5 @@ async def get_file_content(filename: str):
         logger.error("get_file_content wrapper error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
-# ────────────────────────────────────────────────────────────────────────────────
-# Entrypoint
-# ────────────────────────────────────────────────────────────────────────────────
-def main() -> None:
-    port = int(os.getenv("PORT", "8080"))
-    logger.info("Starting %s on port %s", APP_NAME, port)
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
-
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as exc:
-        logger.error("Fatal error in server: %s", exc)
-        sys.exit(1)
+    uvicorn.run("server:app", host="0.0.0.0", port=int(_RPC_PORT), reload=True)
